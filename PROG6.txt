@@ -1,0 +1,248 @@
+//KC03EC9X JOB ,'Sean Mertens',MSGCLASS=H
+//STEP1 EXEC PGM=ASSIST
+//STEPLIB DD DSN=KC02293.ASSIST.LOADLIB,DISP=SHR
+//SYSPRINT DD SYSOUT=*
+//SYSIN DD *
+****************************************
+*PROGRAMMER: Sean Mertens              *
+*ASSIGNMENT: Program 6                 *
+*REGS:As per subroutines               *
+*                                      *
+*DESC:Print a table of player data and *
+*     demonstrate usage of packed deci *
+*     mal editing procedures.          *
+****************************************
+*MAIN subroutine                       *
+*DESC:calls the BUILD and PRINT subrou *
+*     tines.                           *
+*REGS:1 - parameter list               *
+*     11 - branch to other subroutines *
+*     14 - exiting                     *
+*     15 - main subroutine             *
+****************************************
+MAIN     CSECT
+         USING MAIN,15
+         STM   0,15,MAINSTOR  Save registers
+         LA    1,PARAMS2      Load parameters
+         BAL   11,BUILD       Branch to build subroutine
+         LA    1,PARAMS       Load parameters
+         BAL   11,PRINT       Branch to print subroutine
+         LM    0,15,MAINSTOR  Restore registers
+         BR    14
+         LTORG                For literals
+*********STORAGE FOR MAIN********
+MAINSTOR DS    16F
+PARAMS   DC    A(TABLE)       Parameter list for subroutines
+PARAMS2  DC    A(EOT)         Parameter list sans TABLE (for BUILD)
+         DC    A(BUFFER)
+TABLE    DS    390F'-1'       Table of data
+EOT      DC    A(TABLE)       Address of 1st unused entry
+BUFFER   DS    80C            Input line
+         DC    CL1'*'
+*********BUILD SUBROUTINE********
+*DESC:Builds the table          *
+*REGS:2 - End of table          *
+*     3 - Buffer                *
+*     4 - Beginning of table    *
+*     11 - Exit                 *
+*********************************
+BUILD    DS    0H
+         STM   0,15,BILDSTOR  Save registers
+         LM    2,3,0(1)       Unload the parameters
+         L     4,0(2)         Point R4 at TABLE
+         XREAD 0(3),80        Priming read
+TOPLOOP  BC    B'0100',ENDLUP Check for EOF
+         MVC   2(25,4),5(3)   Move name into the table
+         MVC   27(1,4),3(3)   Move position code into the table
+         PACK  0(2,4),0(2,3)  Pack the player's jersey #
+         PACK  28(2,4),31(2,3) Pack the # of games played
+         PACK  30(2,4),34(2,3) Pack the # of goals scored
+         PACK  32(2,4),37(2,3) Pack the # of assists
+         PACK  34(3,4),40(3,3) Pack the # of shots taken
+         PACK  37(2,4),44(2,3) Pack the +/- rating
+         LA    4,39(0,4)      Advance the table pointer
+         XREAD 0(3),80        Read again
+         B     TOPLOOP        Go to the top of the loop
+ENDLUP   DS    0H             END
+         ST    4,0(2)         Update EOT
+         LM    0,15,BILDSTOR  Restore registers
+         BR    11
+         LTORG                For literals
+********STORAGE FOR BUILD********
+BILDSTOR DS    16F
+********PRINT SUBROUTINE*********
+*DESC:Prints the output         *
+*REGS:1 - Floating point +/-    *
+*     2 - EOT                   *
+*     3 - Buffer                *
+*     11 - Exit                 *
+*********************************
+PRINT    DS    0H
+         STM   0,15,PRNTSTOR  Save registers
+         LM    2,3,0(1)       Unload the parameters
+         XPRNT HAWKS,71       Top header
+         XPRNT HEADER,108     Column headers
+         XPRNT LINE,108       Formatting line
+TOPLOOP2 C     2,0(3)         Check for EOF
+         BC    B'1010',ENDLP2 Branch if EOF reached
+         MVC   PLAYNAM(25),2(2)
+********TEST FOR POSITION********
+         CLC   27(1,2),CODE1  See if position code is C
+         BE    ISC            Player is a Center
+         B     NEXT1          Skip to next
+ISC      MVC   FINALPOS,POSCODE1  Print Center
+         B     ENDTEST        Skip to end
+NEXT1    CLC   27(1,2),CODE2  See if position code is D
+         BE    ISD            Player is a Defense
+         B     NEXT2          Skip to next
+ISD      MVC   FINALPOS,POSCODE2  Print Defense
+         B     ENDTEST        Skip to end
+NEXT2    CLC   27(1,2),CODE3  See if position code is G
+         BE    ISG            Player is a Goalie
+         B     NEXT3          Skip to next
+ISG      MVC   FINALPOS,POSCODE3  Print Goalie
+         B     ENDTEST        Skip to end
+NEXT3    CLC   27(1,2),CODE4  See if position code is L
+         BE    ISL            Player is a Left Wing
+         B     NEXT4          Skip to next
+ISL      MVC   FINALPOS,POSCODE4  Print Left Wing
+         B     ENDTEST        Skip to end
+NEXT4    CLC   27(1,2),CODE5  See if position code is R
+         BE    ISR            Player is a Right Wing
+ISR      MVC   FINALPOS,POSCODE5  Print Right Wing
+         B     ENDTEST
+ENDTEST  DS    0H
+         MVC   PLAYNO(4),=X'40202120'
+         ED    PLAYNO(4),0(2) Put the player # on the line
+         MVC   PLAYGAM(4),=X'40202120'
+         ED    PLAYGAM(4),28(2) Put the # of games on the line
+         MVC   PLAYGOL(4),=X'40202120'
+         ED    PLAYGOL(4),30(2) Put the # of goals on the line
+         MVC   PLAYAST(4),=X'40202120'
+         ED    PLAYAST(4),32(2) Put the # of assists on the line
+*********CALCULATE POINTS**********
+         ZAP   TEMP1(2),30(2,2) Put goals into storage
+         ZAP   TEMP2(2),32(2,2) Put assists into storage
+         AP    TEMP1(2),TEMP2(2) Add goals+assists
+*********CONTINUE WITH DATA********
+         MVC   PLAYPTS(4),=X'40202120'
+         ED    PLAYPTS(4),TEMP1 Put the # of points on the line
+         MVC   PLAYSHT(6),=X'402020202120'
+         ED    PLAYSHT(6),34(2) Put the # of shots on the line
+*********CALCULATE SHOT %**********
+         CP    34(3,2),ZERO     Test for no shots taken
+         BE    ZPCT             If no shot taken, branch
+         B     VALID            Else continue calculation
+ZPCT     ZAP   TEMP3(4),=P'0'   ZAP a 0 into our data
+         B     ENDPCT           Skip the division
+VALID    ZAP   TEMP3(7),30(2,2) Put the # of goals into storage
+         SRP   TEMP3(7),4,0     Shift to x100
+         DP    TEMP3(7),34(3,2) Divide goals/shots taken
+         SRP   TEMP3(4),(64-1),5 Remove a digit
+ENDPCT   MVC   SHOTPCT(9),=X'402020202021204B20'
+         ED    SHOTPCT(9),TEMP3 Put the shot % on the line
+************+/- Rating*************
+         CP    37(2,2),ZERO   Compare rating to 0
+         BE    ZRAT           If =0, branch to ZRAT
+         B     RAT2           Else go to next test
+ZRAT     LA    1,PLAYRAT+3
+         MVC   PLAYRAT(4),=X'40202120'
+         EDMK  PLAYRAT(4),37(2) Put the +/- rating on the line
+         BCTR  1,0
+         MVI   0(1),C' '      Print no sign
+         B     ENDRAT         Skip to end
+RAT2     CP    37(2,2),PLUS   Compare rating to 1
+         BC    B'1010',PRAT   If =1 or greater, branch to PRAT
+         B     RAT3           Else go to next test
+PRAT     LA    1,PLAYRAT+3    Pointer
+         MVC   PLAYRAT(4),=X'40202120'
+         EDMK  PLAYRAT(4),37(2) Put the +/- rating on the line
+         BCTR  1,0
+         MVI   0(1),C'+'      Print a +
+         B     ENDRAT         Skip to end
+RAT3     CP    37(2,2),MINUS  Compare rating to -1
+         BC    B'1100',MRAT   If =-1 or less than, branch to MRAT
+         B     ENDRAT         Branch to end
+MRAT     LA    1,PLAYRAT+3    Pointer
+         MVC   PLAYRAT(4),=X'40202120'
+         EDMK  PLAYRAT(4),37(2) Put the +/- rating on the line
+         BCTR  1,0
+         MVI   0(1),C'-'      Print a -
+ENDRAT   DS    0H
+********FINAL CALCULATIONS*******
+         XPRNT OUTPUT,106     Print a line of data
+         LA    2,39(2)        Advance the table pointer
+         B     TOPLOOP2       Return to top for next player
+ENDLP2   DS    0H             END
+         ST    2,0(3)         Update EOT
+         LM    0,15,PRNTSTOR  Restore registers
+         BR    11
+         LTORG                For literals
+********STORAGE FOR PRINT********
+PRNTSTOR DS    16F
+TEMP1    DS    PL2
+TEMP2    DS    PL2
+TEMP3    DS    PL7
+ZERO     DC    PL1'0'
+PLUS     DC    PL1'1'
+MINUS    DC    PL2'-1'
+CODE1    DC    CL1'C'
+CODE2    DC    CL1'D'
+CODE3    DC    CL1'G'
+CODE4    DC    CL1'L'
+CODE5    DC    CL1'R'
+POSCODE1 DC    CL10'Center'
+POSCODE2 DC    CL10'Defense'
+POSCODE3 DC    CL10'Goalie'
+POSCODE4 DC    CL10'Left Wing'
+POSCODE5 DC    CL10'Right Wing'
+ZEROPRNT DC    CL1'0'
+HAWKS    DC    CL1'1'
+         DC    CL39' '
+         DC    CL31'Chicago Blackhawks Player Stats'
+HEADER   DC    CL1'-'
+         DC    CL1'#'
+         DC    CL4' '
+         DC    CL6'Player'
+         DC    CL15' '
+         DC    CL8'Position'
+         DC    CL6' '
+         DC    CL5'Games'
+         DC    CL4' '
+         DC    CL5'Goals'
+         DC    CL2' '
+         DC    CL7'Assists'
+         DC    CL2' '
+         DC    CL7'Points'
+         DC    CL2' '
+         DC    CL5'Shots'
+         DC    CL4' '
+         DC    CL10'Shooting %'
+         DC    CL4' '
+         DC    CL10'+/- Rating'
+LINE     DC    113C'-'
+OUTPUT   DC    CL1' '
+PLAYNO   DC    CL4' '
+         DC    CL1' '
+PLAYNAM  DC    CL20' '
+         DC    CL1' '
+FINALPOS DC    CL10' '
+         DC    CL4' '
+PLAYGAM  DC    CL4' '
+         DC    CL4' '
+PLAYGOL  DC    CL4' '
+         DC    CL4' '
+PLAYAST  DC    CL4' '
+         DC    CL4' '
+PLAYPTS  DC    CL4' '
+         DC    CL4' '
+PLAYSHT  DC    CL4' '
+         DC    CL4' '
+SHOTPCT  DC    CL9' '
+         DC    CL11' '
+RATSIGN  DC    CL1' '
+PLAYRAT  DC    CL4' '
+         END   MAIN
+/*
+//FT05F001 DD DSN=KC02330.CSCI360.FILES(DATA6),DISP=SHR
+//

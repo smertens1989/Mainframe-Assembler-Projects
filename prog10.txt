@@ -1,0 +1,140 @@
+//KCIDPLUS A LETTER JOB ,'Your Name',MSGCLASS=H
+//STEP1 EXEC PGM=ASSIST,PARM='MACRO=F'
+//STEPLIB DD DSN=KC02293.ASSIST.LOADLIB,DISP=SHR
+//SYSPRINT DD SYSOUT=*
+//SYSIN DD *
+         MACRO
+&LABEL   BRTAB &REG,&LIST
+.**********************************************************************
+.*  Name:     BRTAB
+.*
+.*  Function: Generates instructions for a branch table
+.*
+.*  Prototype: &LABEL   BRTAB &REG,&LIST
+.*
+.*  Symbolic Parameters: &REG,&LIST
+.*
+.*  Error Conditions:
+.*
+.*  Notes:
+.**********************************************************************        
+         LCLC    &NDX
+.*  Local variable that holds the systemindex list label
+         LCLA    &NUMB,&COUNT
+.*  Local variables for the loop counter
+&NDX       SETC    '&SYSNDX'
+.*  Point NDX at the label variable
+&COUNT     SETA    2
+.*  Set counter to 2
+&NUMB     SETA    N'&LIST
+.*  Set num to the number of symbolic params
+         AIF     ('&REG'  EQ  '').STOP
+         AIF     ('&LIST'  EQ  '').STOP
+.*  End if any of the vars are null
+         B     LIST&NDX.(&REG)
+.*  Otherwise branch to the return code
+LIST&NDX B     &LIST(1)
+.*  Branch to the 1st code in parameter 1 
+.LOOP    AIF     (&COUNT  GT  &NUMB).FIN
+.*  If counter is > than the # of params in the sublist, end the loop
+         B     &LIST(&COUNT)
+.*  Otherwise branch to the next parameter
+&COUNT     SETA    &COUNT+1
+.*  Increment counter +1
+         AGO     .LOOP
+.*  Unconditional branch to .LOOP 
+.FIN     ANOP
+.*  For all intents and purposes, a DS 0H
+SOC1&NDX DC    H'0'
+.STOP    ANOP
+         MEND
+*
+     TITLE 'Your Name, CSCI 360, Section 1, BRTAB Macro'
+*********0*****6*******************6**********************************1
+*
+* Function:  This program is 'test data' for CSCI 360 Program 10
+*    for Spring 2013.  See the assignment write-up for requirements
+*    of the BRTAB macro instruction.
+*
+*********0*****6*******************6**********************************1
+*
+         PRINT NOGEN
+TSTPGM10 CSECT
+         STM   14,12,12(13)        Save the calling routine's register
+         LR    12,15               Setup the base register
+         USING TSTPGM10,12            for the routine
+         LA    14,MAINSAVE         Find the routine's savearea
+         ST    13,4(,14)           Save the backward
+         ST    14,8(,13)             and forward pointers
+         LR    13,14               R13 -> MAINSAVE
+*
+         PRINT GEN ,               Expand the macros
+*
+FIRST    SR    15,15               Set return code to 0
+         LR    9,15                Copy for message
+         LA    10,SECOND           Where to go next
+         BRTAB 15,(TEST,BLOWUP,BLOWUP) Handle return code
+         B     BLOWUP              Should not fall through to this line
+*
+SECOND   MVI   CODEMSG,C' '        Change the carriage control
+         MVI   ERRMSG,C' '           on both lines
+         LA    3,8                 Set return code to 8
+         LR    9,3                 Copy for message
+         LA    10,THIRD            Where to go next
+         BRTAB 3,(*,*,TEST,BLOWUP) Handle return code
+         B     BLOWUP              Should not fall through to this line
+*
+THIRD    LA    15,12               Set return code to 12
+         LR    9,15                Copy for message
+         LA    10,FOURTH           Where to go next
+         BRTAB 15,(BLOWUP,BLOWUP,BLOWUP,TEST) Handle return code
+         B     BLOWUP              Should not fall through to this line
+*
+FOURTH   LA    15,16               Set return code to 16
+         LR    9,15                Copy for message
+         LA    10,FIFTH            Where to go next
+         BRTAB
+         B     BLOWUP              Should fall through to this line
+*
+FIFTH    LA    7,16                Set return code to 16
+         LR    9,7                 Copy for message
+         LA    10,SIXTH            Where to go next
+         BRTAB 7,(BLOWUP,BLOWUP,BLOWUP,BLOWUP,TEST,BLOWUP)
+         B     BLOWUP              Should not fall through to this line
+*
+SIXTH    LA    8,4                 Set return code to 4
+         LR    9,8                 Copy for message
+         LA    10,RETURN           Where to go next
+         BRTAB ,(BLOWUP,TEST,BLOWUP) Handle return code
+         B     BLOWUP              Should not fall through to this line
+*
+TEST     XDECO 9,CODEPRT           Get printable return code
+         XPRNT CODEMSG,CODEMSGL    Print "normal" message
+         BR    10                  Do next test
+*
+BLOWUP   XDECO 9,ERRPRT            Get printable return code
+         XPRNT ERRMSG,ERRMSGL      Print error message
+         BR    10                  Do next test
+*
+*
+RETURN   L     13,4(,13)          Get the address of the savearea
+         LM    14,12,12(13)       Restore the calling routine's regs
+         BR    14                 I'm done!
+         LTORG
+*
+*** Storage for TSTPGM10 ***
+*
+MAINSAVE DS    18F                Storage for registers
+*
+CODEMSG  DC    C'1'
+         DC    C'*** Correctly handled return code'
+CODEPRT  DS    CL12
+         DC    C' ***'
+CODEMSGL EQU   *-CODEMSG           Length of message
+*
+ERRMSG   DC    C'1'
+         DC    C'*** Error handling return code   '
+ERRPRT   DS    CL12
+         DC    C' ***'
+ERRMSGL  EQU   *-ERRMSG
+         END   TSTPGM10

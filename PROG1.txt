@@ -1,0 +1,6 @@
+//KC03EC9 JOB ,'Sean Mertens',MSGLEVEL=(1,0)                            00010000
+//STEP1 EXEC PGM=ASSIST                                                 00020000
+//STEPLIB DD DSN=KC02293.ASSIST.LOADLIB,DISP=SHR                        00030001
+//SYSPRINT DD SYSOUT=*                                                  00040000
+//SYSIN DD DSN=KC02330.CSCI360.FILES(PGM1),DISP=SHR                     00050000
+//                                                                      00060000

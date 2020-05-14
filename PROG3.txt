@@ -1,0 +1,188 @@
+//KC03EC9X JOB ,'Sean Mertens',MSGCLASS=H                               00010012
+//STEP1 EXEC PGM=ASSIST                                                 00020000
+//STEPLIB DD DSN=KC02293.ASSIST.LOADLIB,DISP=SHR                        00030000
+//SYSPRINT DD SYSOUT=*                                                  00040000
+//SYSIN DD *                                                            00050000
+****************************************                                00060000
+*PROGRAMMER: Sean Mertens              *                                00070000
+*ASSIGNMENT: Program 3                 *                                00080000
+*REGS:                                 *                                00090000
+*         2:      Stock #              *                                00100000
+*         3:      # in stock, also     *                                00110004
+*                 total #              *                                00120004
+*         4:      # rented             *                                00130004
+*         5:      status code          *                                00140004
+*         6:      partner to R7        *                                00150004
+*         7:      game ownership total *                                00160004
+*         8:      partner to R9        *                                00170004
+*         9:      movie ownership total*                                00180004
+*         10:     partner to R11       *                                00190004
+*         11:     game rental total    *                                00200004
+*         12:     partner to R13       *                                00210004
+*         13:     movie rental total   *                                00220004
+****************************************                                00230001
+MAIN       CSECT                  Control SECTion                       00240001
+           USING MAIN,15          Using statement                       00250001
+           SR    7,7              Zero registers                        00251011
+           SR    9,9                                                    00252011
+           SR    11,11                                                  00253011
+           SR    13,13                                                  00254011
+           XPRNT PRNTHEAD,60      Print header                          00260023
+           XPRNT LABELS,72        Print table labels                    00270034
+           XPRNT LINE,83          Print formatting line                 00271018
+           XREAD BUFFER,80        Read first line                       00280001
+TOPLOOP    BC    B'0100',ENDLOOP  Check for EOF                         00290001
+           XDECI 2,BUFFER         XDECI commands for the 4 values       00300001
+           XDECI 3,0(,1)                                                00310039
+           XDECI 4,0(,1)                                                00320039
+           XDECI 5,0(,1)                                                00330039
+           XDECO 2,STOCKA         XDECO commands for the 4 values       00340031
+           XDECO 2,STOCKB                                               00341031
+           XDECO 2,STOCKC                                               00342031
+           XDECO 2,STOCKD                                               00343031
+           XDECO 3,STOCKNOA                                             00350031
+           XDECO 3,STOCKNOB                                             00351031
+           XDECO 3,STOCKNOC                                             00352031
+           XDECO 3,STOCKNOD                                             00353031
+           XDECO 4,RENTNOA                                              00360031
+           XDECO 4,RENTNOB                                              00361031
+           XDECO 4,RENTNOC                                              00362031
+           XDECO 4,RENTNOD                                              00363031
+           AR    3,4              Add STOCKNO to RENTNO                 00380007
+           XDECO 3,TOTALA         Copies held + rented out              00390033
+           XDECO 3,TOTALB                                               00400033
+           XDECO 3,TOTALC                                               00401033
+           XDECO 3,TOTALD                                               00402033
+IFZRO      C     5,=F'0'          Check if the status code is 0         00410004
+           BNE   IFONE            If != 0 go to IFONE                   00420001
+           AR    9,3              Add the total store copies to R9      00430004
+           AR    13,4             Add the copies rented to R13          00440004
+           XPRNT PRNTA,73         Print the A output                    00441047
+           B     END              Skip other status code programming    00450001
+IFONE      C     5,=F'1'          Check if the status code is 1         00460004
+           BNE   IFTWO            If != 1 go to IFTWO                   00470001
+           AR    9,3              Add the total store copies to R9      00480004
+           AR    13,4             Add the copies rented to R13          00490004
+           XPRNT PRNTB,73         Print the B output                    00491047
+           B     END              Skip other status code programming    00500001
+IFTWO      C     5,=F'2'          Check if the status code is 2         00510004
+           BNE   IFTHR            If != 2 go to IFTHR                   00520001
+           AR    7,3              Add the total store copies to R7      00530004
+           AR    11,4             Add the copies rented to R11          00540004
+           XPRNT PRNTC,77         Print the C output                    00541047
+           B     END              Skip other status code programming    00550001
+IFTHR      C     5,=F'3'          Check if the status code is 3         00560004
+           AR    7,3              Add the total store copies to R7      00570004
+           AR    11,4             Add the copies rented to R11          00580004
+           XPRNT PRNTD,77         Print the D output                    00600047
+END        XREAD BUFFER,80        Read next line                        00610031
+           BC    B'1111',TOPLOOP  Return to beginning of loop           00620001
+ENDLOOP    DS    0H               End of loop                           00630001
+           XDECO 9,MOVTOT         Total number of movies                00640001
+           XDECO 7,GAMTOT         Total number of games                 00650004
+           M     10,=F'100'       Total games rented x100               00660007
+           M     12,=F'100'       Total movies rented x100              00670007
+           DR    10,7             Divide total rented by total owned    00680008
+           AR    10,10            Double the remainder                  00681013
+           BC    B'1010',ADDONE   Branch if = or greater than           00682013
+ADDONE     A     11,=F'1'         Add one to R11                        00683013
+           DR    12,9             Divide total rented by total owned    00690008
+           AR    12,12            Double the remainder                  00691013
+           BC    B'1010',ADDONES  Branch if = or greater than           00692013
+ADDONES    A     13,=F'1'         Add one to R13                        00693013
+           XDECO 11,MOVPCT        R11 = % rented                        00700013
+           XDECO 13,GAMPCT        R13 = % rented                        00710013
+           XPRNT MOVTOTL,36       Print movie total                     00720001
+           XPRNT MOVPCTL,45       Print percentage of movies rented     00730001
+           XPRNT GAMTOTL,35       Print game total                      00740001
+           XPRNT GAMPCTL,44       Print percentage of games rented      00750001
+           BCR   B'1111',14       Begin program storage                 00760001
+           LTORG                  Literals used                         00770001
+***********PROGRAM STORAGE***********                                   00780001
+BUFFER     DS    CL80             Input buffer                          00790001
+*************LOOP OUTPUT*************                                   00800001
+PRNTA      DC    C' '                                                   00810037
+STOCKA     DS    CL12             The stock number                      00820031
+           DC    C' '                                                   00830001
+STOCKNOA   DS    CL12             The amount currently held             00840031
+           DC    C' '                                                   00850001
+RENTNOA    DS    CL12             The amount rented out                 00860031
+           DC    C' '                                                   00870001
+TOTALA     DS    CL12             The total amount of copies            00880031
+           DC    12C' '                                                 00890046
+           DC    CL9'Old Movie'                                         00891043
+**************OUTPUTB****************                                   00900031
+PRNTB      DC    C' '                                                   00910037
+STOCKB     DS    CL12                                                   00911031
+           DC    C' '                                                   00912031
+STOCKNOB   DS    CL12                                                   00913031
+           DC    C' '                                                   00914031
+RENTNOB    DS    CL12                                                   00915031
+           DC    C' '                                                   00916031
+TOTALB     DS    CL12                                                   00917031
+           DC    12C' '                                                 00918046
+           DC    CL9'New Movie'                                         00919043
+**************OUTPUTC****************                                   00919231
+PRNTC      DC    C' '                                                   00919337
+STOCKC     DS    CL12                                                   00919431
+           DC    C' '                                                   00919531
+STOCKNOC   DS    CL12                                                   00919631
+           DC    C' '                                                   00919731
+RENTNOC    DS    CL12                                                   00919831
+           DC    C' '                                                   00919931
+TOTALC     DS    CL12                                                   00920043
+           DC    12C' '                                                 00920146
+           DC    CL13'New Videogame'                                    00920243
+**************OUTPUTD****************                                   00920431
+PRNTD      DC    C' '                                                   00920537
+STOCKD     DS    CL12                                                   00920631
+           DC    C' '                                                   00920731
+STOCKNOD   DS    CL12                                                   00920831
+           DC    C' '                                                   00920931
+RENTNOD    DS    CL12                                                   00921031
+           DC    C' '                                                   00921131
+TOTALD     DS    CL12                                                   00921231
+           DC    12C' '                                                 00921346
+           DC    CL13'Old Videogame'                                    00921443
+************COLUMN HEADER************                                   00922001
+PRNTHEAD   DC    CL1'1'                                                 00930035
+           DC    CL26' '                                                00940001
+           DC    CL33'Movie and Game Rental Information'                00950001
+*************DATA LABELS*************                                   00960001
+LABELS     DC    CL1'0'                                                 00970001
+           DC    6C' '                                                  00971022
+           DC    CL7'Stock #'                                           00980021
+           DC    6C' '                                                  00981025
+           DC    CL10'# in Stock'                                       00990021
+           DC    5C' '                                                  00991029
+           DC    CL8'Rented #'                                          01000027
+           DC    5C' '                                                  01001030
+           DC    CL7'Total #'                                           01002027
+           DC    3C' '                                                  01003027
+           DC    CL14'Release Status'                                   01010021
+****************LINE*****************                                   01020001
+LINE       DC    CL1'0'                                                 01030001
+           DC    82CL1'-'                                               01040020
+***************MOVIES****************                                   01050001
+MOVTOTL    DC    CL1'-'                                                 01060001
+           DC    CL23'Total number of movies:'                          01070001
+MOVTOT     DS    CL12                                                   01080001
+           DC    C' '                                                   01090001
+MOVPCTL    DC    CL1'-'                                                 01100001
+           DC    CL32'Percentage of movies rented out:'                 01110001
+MOVPCT     DS    CL12                                                   01120001
+           DC    C' '                                                   01130001
+***************GAMES*****************                                   01140001
+GAMTOTL    DC    CL1'-'                                                 01150001
+           DC    CL22'Total number of games:'                           01160001
+GAMTOT     DS    CL12                                                   01170001
+           DC    C' '                                                   01180001
+GAMPCTL    DC    CL1'-'                                                 01190001
+           DC    CL31'Percentage of games rented out:'                  01200001
+GAMPCT     DS    CL12                                                   01210001
+           DC    C' '                                                   01220001
+************END OF OUTPUT************                                   01230001
+           END   MAIN             End assembly, define entry point      01240001
+/*                                                                      01250001
+//FT05F001 DD DSN=KC02330.CSCI360.FILES(DATA3),DISP=SHR                 01260001
+//                                                                      01270001

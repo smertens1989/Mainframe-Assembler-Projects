@@ -1,0 +1,416 @@
+//KC03EC9X JOB ,'Sean Mertens',MSGCLASS=H
+//STEP1 EXEC PGM=ASSIST
+//STEPLIB DD DSN=KC02293.ASSIST.LOADLIB,DISP=SHR
+//SYSPRINT DD SYSOUT=*
+//SYSIN DD *
+****************************************
+*PROGRAMMER: Sean Mertens              *
+*ASSIGNMENT: Program 7                 *
+*REGS:As per subroutines               *
+*                                      *
+*DESC:Program 6 with external          *
+*     subroutine functionality         *
+****************************************
+*MAIN subroutine                       *
+*DESC:calls the BUILD and PRINT subrou *
+*     tines.                           *
+*REGS:1 - parameter list               *
+*     11 - branch to other subroutines *
+*     14 - exiting                     *
+*     15 - main subroutine             *
+****************************************
+**MAIN SUBROUTINE ENTRY LINKAGE**
+MAIN     CSECT
+         STM   14,12,12(13)
+         LR    12,15
+         USING MAIN,12
+         LA    14,MAINSTOR    Point R14 at storage
+         ST    13,4(14)       Save backwards pointer
+         ST    14,8(13)       Save forward pointer
+         LR    13,14          Point R13 at storage
+*********************************
+         LA    1,PARAMS2      Load parameters
+         L     15,=V(BUILD)   Get the subroutine address
+         BALR  14,15          Branch to build subroutine
+         LA    1,PARAMS2      Load parameters
+         L     15,=V(BUILD)   Get the subroutine address
+         BALR  14,15          Branch to build again
+         LA    1,PARAMS       Load parameters
+         L     15,=V(PRINT)   Get the subroutine address
+         BALR  14,15          Branch to print subroutine
+         LA    1,PARAMS       Load parameters
+         L     15,=V(UPDATE)  Get the subroutine address
+         BALR  14,15          Branch to update subroutine
+         LA    1,PARAMS       Load parameters
+         L     15,=V(SORT)    Get the subroutine address
+         BALR  14,15          Branch to sort subroutine
+         LA    1,PARAMS       Load parameters
+         L     15,=V(PRINT)   Get the subroutine address
+         BALR  14,15          Branch to print again
+**********EXIT LINKAGE***********
+         L     13,4(,13)      Load save area into R13
+         LM    14,12,12(13)   Load registers except R13
+         BR    14             Return
+         LTORG                For literals
+*********STORAGE FOR MAIN********
+MAINSTOR DS    18F
+PARAMS   DC    A(TABLE)       Parameter list for subroutines
+PARAMS2  DC    A(EOT)         Parameter list sans TABLE (for BUILD)
+         DC    A(BUFFER)
+TABLE    DS    390F'-1'       Table of data
+EOT      DC    A(TABLE)       Address of 1st unused entry
+BUFFER   DS    80C            Input line
+         DC    CL1'*'
+*********BUILD SUBROUTINE********
+*DESC:Builds the table          *
+*REGS:2 - End of table          *
+*     3 - Buffer                *
+*     4 - Beginning of table    *
+*     11 - Exit                 *
+*********************************
+*BUILD SUBROUTINE ENTRY LINKAGE**
+BUILD    CSECT
+         STM   14,12,12(13)
+         LR    12,15
+         USING BUILD,12
+         LA    14,BILDSTOR    Point R14 at storage
+         ST    13,4(0,14)     Save the forward pointer
+         ST    14,8(0,13)     save the backward pointer
+         LR    13,14          Point R13 at storage
+*********************************
+         LM    2,3,0(1)       Unload the parameters
+         L     4,0(2)         Point R4 at TABLE
+         XREAD 0(3),80        Priming read
+TOPLOOP  BC    B'0100',ENDLUP Check for EOF
+         CLC   0(2,3),=C'-1'  Test for additional exit
+         BC    B'1000',ENDLUP If -1, go to end
+         MVC   2(25,4),5(3)   Move name into the table
+         MVC   27(1,4),3(3)   Move position code into the table
+         PACK  0(2,4),0(2,3)  Pack the player's jersey #
+         PACK  28(2,4),31(2,3) Pack the # of games played
+         PACK  30(2,4),34(2,3) Pack the # of goals scored
+         PACK  32(2,4),37(2,3) Pack the # of assists
+         PACK  34(3,4),40(3,3) Pack the # of shots taken
+         PACK  37(2,4),44(2,3) Pack the +/- rating
+         LA    4,39(0,4)      Advance the table pointer
+         XREAD 0(3),80        Read again
+         B     TOPLOOP        Go to the top of the loop
+ENDLUP   DS    0H             END
+         ST    4,0(2)         Update EOT
+**********EXIT LINKAGE***********
+         L     13,4(,13)      Load save area into R13
+         LM    14,12,12(13)   Load registers except R13
+         BR    14             Return
+         LTORG                For literals
+********STORAGE FOR BUILD********
+BILDSTOR DS    18F
+NEGONE   DC    PL2'-1'        Used for additional exit condition
+********PRINT SUBROUTINE*********
+*DESC:Prints the output         *
+*REGS:1 - Floating point +/-    *
+*     2 - EOT                   *
+*     3 - Buffer                *
+*     11 - Exit                 *
+*********************************
+*PRINT SUBROUTINE ENTRY LINKAGE**
+PRINT    CSECT
+         STM   14,12,12(13)
+         LR    12,15
+         USING PRINT,12
+         LA    14,PRNTSTOR    Point R14 at storage
+         ST    13,4(0,14)     Save the forward pointer
+         ST    14,8(0,13)     Save the backward pointer
+         LR    13,14          Point R13 at storage
+*********************************
+         LM    2,3,0(1)       Unload the parameters
+         XPRNT HAWKS,71       Top header
+         XPRNT HEADER,108     Column headers
+         XPRNT LINE,108       Formatting line
+TOPLOOP2 C     2,0(3)         Check for EOF
+         BC    B'1010',ENDLP2 Branch if EOF reached
+         MVC   PLAYNAM(25),2(2)
+********TEST FOR POSITION********
+         CLC   27(1,2),CODE1  See if position code is C
+         BE    ISC            Player is a Center
+         B     NEXT1          Skip to next
+ISC      MVC   FINALPOS,POSCODE1  Print Center
+         B     ENDTEST        Skip to end
+NEXT1    CLC   27(1,2),CODE2  See if position code is D
+         BE    ISD            Player is a Defense
+         B     NEXT2          Skip to next
+ISD      MVC   FINALPOS,POSCODE2  Print Defense
+         B     ENDTEST        Skip to end
+NEXT2    CLC   27(1,2),CODE3  See if position code is G
+         BE    ISG            Player is a Goalie
+         B     NEXT3          Skip to next
+ISG      MVC   FINALPOS,POSCODE3  Print Goalie
+         B     ENDTEST        Skip to end
+NEXT3    CLC   27(1,2),CODE4  See if position code is L
+         BE    ISL            Player is a Left Wing
+         B     NEXT4          Skip to next
+ISL      MVC   FINALPOS,POSCODE4  Print Left Wing
+         B     ENDTEST        Skip to end
+NEXT4    CLC   27(1,2),CODE5  See if position code is R
+         BE    ISR            Player is a Right Wing
+ISR      MVC   FINALPOS,POSCODE5  Print Right Wing
+         B     ENDTEST
+ENDTEST  DS    0H
+         MVC   PLAYNO(4),=X'40202120'
+         ED    PLAYNO(4),0(2) Put the player # on the line
+         MVC   PLAYGAM(4),=X'40202120'
+         ED    PLAYGAM(4),28(2) Put the # of games on the line
+         MVC   PLAYGOL(4),=X'40202120'
+         ED    PLAYGOL(4),30(2) Put the # of goals on the line
+         MVC   PLAYAST(4),=X'40202120'
+         ED    PLAYAST(4),32(2) Put the # of assists on the line
+*********CALCULATE POINTS**********
+         ZAP   TEMP1(2),30(2,2) Put goals into storage
+         ZAP   TEMP2(2),32(2,2) Put assists into storage
+         AP    TEMP1(2),TEMP2(2) Add goals+assists
+*********CONTINUE WITH DATA********
+         MVC   PLAYPTS(4),=X'40202120'
+         ED    PLAYPTS(4),TEMP1 Put the # of points on the line
+         MVC   PLAYSHT(6),=X'402020202120'
+         ED    PLAYSHT(6),34(2) Put the # of shots on the line
+*********CALCULATE SHOT %**********
+         CP    34(3,2),ZERO     Test for no shots taken
+         BE    ZPCT             If no shot taken, branch
+         B     VALID            Else continue calculation
+ZPCT     ZAP   TEMP3(4),=P'0'   ZAP a 0 into our data
+         B     ENDPCT           Skip the division
+VALID    ZAP   TEMP3(7),30(2,2) Put the # of goals into storage
+         SRP   TEMP3(7),4,0     Shift to x100
+         DP    TEMP3(7),34(3,2) Divide goals/shots taken
+         SRP   TEMP3(4),(64-1),5 Remove a digit
+ENDPCT   MVC   SHOTPCT(9),=X'402020202021204B20'
+         ED    SHOTPCT(9),TEMP3 Put the shot % on the line
+************+/- Rating*************
+         CP    37(2,2),ZERO   Compare rating to 0
+         BE    ZRAT           If =0, branch to ZRAT
+         B     RAT2           Else go to next test
+ZRAT     LA    1,PLAYRAT+3
+         MVC   PLAYRAT(4),=X'40202120'
+         EDMK  PLAYRAT(4),37(2) Put the +/- rating on the line
+         BCTR  1,0
+         MVI   0(1),C' '      Print no sign
+         B     ENDRAT         Skip to end
+RAT2     CP    37(2,2),PLUS   Compare rating to 1
+         BC    B'1010',PRAT   If =1 or greater, branch to PRAT
+         B     RAT3           Else go to next test
+PRAT     LA    1,PLAYRAT+3    Pointer
+         MVC   PLAYRAT(4),=X'40202120'
+         EDMK  PLAYRAT(4),37(2) Put the +/- rating on the line
+         BCTR  1,0
+         MVI   0(1),C'+'      Print a +
+         B     ENDRAT         Skip to end
+RAT3     CP    37(2,2),MINUS  Compare rating to -1
+         BC    B'1100',MRAT   If =-1 or less than, branch to MRAT
+         B     ENDRAT         Branch to end
+MRAT     LA    1,PLAYRAT+3    Pointer
+         MVC   PLAYRAT(4),=X'40202120'
+         EDMK  PLAYRAT(4),37(2) Put the +/- rating on the line
+         BCTR  1,0
+         MVI   0(1),C'-'      Print a -
+ENDRAT   DS    0H
+********FINAL CALCULATIONS*******
+         XPRNT OUTPUT,106     Print a line of data
+         LA    2,39(2)        Advance the table pointer
+         B     TOPLOOP2       Return to top for next player
+ENDLP2   DS    0H             END
+         ST    2,0(3)         Update EOT
+**********EXIT LINKAGE***********
+         L     13,4(,13)      Load save area into R13
+         LM    14,12,12(13)   Load registers except R13
+         BR    14             Return
+         LTORG                For literals
+********STORAGE FOR PRINT********
+PRNTSTOR DS    18F
+TEMP1    DS    PL2
+TEMP2    DS    PL2
+TEMP3    DS    PL7
+ZERO     DC    PL1'0'
+PLUS     DC    PL1'1'
+MINUS    DC    PL2'-1'
+CODE1    DC    CL1'C'
+CODE2    DC    CL1'D'
+CODE3    DC    CL1'G'
+CODE4    DC    CL1'L'
+CODE5    DC    CL1'R'
+POSCODE1 DC    CL10'Center'
+POSCODE2 DC    CL10'Defense'
+POSCODE3 DC    CL10'Goalie'
+POSCODE4 DC    CL10'Left Wing'
+POSCODE5 DC    CL10'Right Wing'
+ZEROPRNT DC    CL1'0'
+HAWKS    DC    CL1'1'
+         DC    CL39' '
+         DC    CL31'Chicago Blackhawks Player Stats'
+HEADER   DC    CL1'-'
+         DC    CL1'#'
+         DC    CL4' '
+         DC    CL6'Player'
+         DC    CL15' '
+         DC    CL8'Position'
+         DC    CL6' '
+         DC    CL5'Games'
+         DC    CL4' '
+         DC    CL5'Goals'
+         DC    CL2' '
+         DC    CL7'Assists'
+         DC    CL2' '
+         DC    CL7'Points'
+         DC    CL2' '
+         DC    CL5'Shots'
+         DC    CL4' '
+         DC    CL10'Shooting %'
+         DC    CL4' '
+         DC    CL10'+/- Rating'
+LINE     DC    113C'-'
+OUTPUT   DC    CL1' '
+PLAYNO   DC    CL4' '
+         DC    CL1' '
+PLAYNAM  DC    CL20' '
+         DC    CL1' '
+FINALPOS DC    CL10' '
+         DC    CL4' '
+PLAYGAM  DC    CL4' '
+         DC    CL4' '
+PLAYGOL  DC    CL4' '
+         DC    CL4' '
+PLAYAST  DC    CL4' '
+         DC    CL4' '
+PLAYPTS  DC    CL4' '
+         DC    CL4' '
+PLAYSHT  DC    CL4' '
+         DC    CL4' '
+SHOTPCT  DC    CL9' '
+         DC    CL11' '
+RATSIGN  DC    CL1' '
+PLAYRAT  DC    CL4' '
+****************************************
+*UPDATE subroutine                     *
+*DESC:produces a simple update report  *
+*REGS:1 - parameter list               *
+*                                      *
+*                                      *
+*                                      *
+****************************************
+*UPDATE SUBROUTINE ENTRY LINKAGE*
+UPDATE   CSECT
+         STM   14,12,12(13)
+         LR    12,15
+         USING UPDATE,12
+         LA    14,UDSTOR      Point R14 at storage
+         ST    13,4(,14)      Save backwards pointer
+         ST    14,8(,13)      Save forward pointer
+         LR    13,14          Point R13 at storage
+*********************************
+         LM    3,5,0(1)       Unload the parameters
+         XPRNT UDHDR,15       Print update header
+         XPRNT UDLN,25        Print line of dashes
+         LR    6,3            Load table into R6
+         XREAD 0(,5),80       Priming read
+TOPLOOP3 BC    B'0100',ENDLUP3 Check for EOF
+         ZAP   PNO(4),=P'0'   Clear player number
+         PACK  PNO(2),0(2,5)  Pack the player #
+COMP     C     3,0(,4)        Compare the #s
+         BE    NTFND          If EOT then branch       
+         CP    PNO(2),2(2,3)  Check for player #
+         BE    PACKS          Update
+         LA    3,52(,3)       Increment
+         B     COMP           Branch to COMP
+PACKS    DS    0H
+         PACK  NEWGAM(4),3(2,5)   Pack the # of games played
+         AP    28(4,3),NEWGAM(4)  Add the records together
+         PACK  NEWGOL(4),6(2,5)   Pack the # of goals scored
+         AP    30(4,3),NEWGOL(4)  Add the records together
+         PACK  NEWAST(4),9(2,5)   Pack the # of assists
+         AP    32(4,3),NEWAST(4)  Add the records together
+         PACK  NEWSHT(4),12(3,5)  Pack the # of shots taken
+         AP    34(4,3),NEWSHT(4)  Add the records together
+         PACK  NEWRAT(4),16(2,5)  Pack the +/- rating
+         AP    37(4,3),NEWRAT(4)  Add the records together
+         XPRNT FOUND,17       Print this if found         
+         LA    3,0(,6)        Set table pointer
+         XREAD 0(,5),80       Next read
+         B     TOPLOOP3       Go to the top of the loop
+NTFND    XPRNT NFOUND,21      Print this if not found
+         LA    3,0(,6)        Set table pointer
+         XREAD 0(,5),80       Next read
+         B     TOPLOOP3       Go to the top of the loop
+ENDLUP3  DS    0H             END     
+**********EXIT LINKAGE***********
+         L     13,4(,13)      Load save area into R13
+         LM    14,12,12(13)   Load registers except R13
+         BR    14             Return
+         LTORG                For literals
+*******STORAGE FOR UPDATE********
+UDSTOR   DS    18F
+UDHDR    DC    CL1'1'
+         DC    CL14'Update results'
+UDLN     DC    25C'-'
+FOUND    DC    CL1' '
+         DC    CL16'Player was found'
+NFOUND   DC    CL1' '
+         DC    CL20'Player was not found'
+NEWGAM   DS    4P
+NEWGOL   DS    PL4
+NEWAST   DS    PL4
+NEWSHT   DS    PL4
+NEWRAT   DS    PL4
+PNO      DS    PL4
+****************************************
+*SORT subroutine                       *
+*DESC:produces sorted output           *
+*REGS:1 - parameter list               *
+*                                      *
+*                                      *
+*                                      *
+****************************************
+**SORT SUBROUTINE ENTRY LINKAGE**
+SORT   CSECT
+         STM   14,12,12(13)
+         LR    12,15
+         USING SORT,12
+         LA    14,STSTOR      Point R14 at storage
+         ST    13,4(14)       Save backwards pointer
+         ST    14,8(13)       Save forward pointer
+         LR    13,14          Point R13 at storage
+*********************************
+         LM    3,4,0(1)       Load parameters
+TOPLOOP4 C     3,0(,4)        Compare to EOT  
+         BE    ENDLUP4        Branch if equal
+         LR    5,3            Set the index to R5
+         LA    6,52(,3)       Set the address of the index to R6+1
+DO       C     6,0(,4)        Compare the address of R6 to EOT
+         BE    ENDDO          Branch if equal 
+         ZAP   STOR2(4),36(4,5) Put assists in temp storage
+         AP    STOR2(4),40(4,5) Add them to goals for first total
+         ZAP   STOR3(4),36(4,6) Put assists in temp storage
+         AP    STOR3(4),40(4,6) Add them to goals for second total
+         CP    STOR2(4),STOR3(4) Compare the points
+         BNL   ITER           If not lower, branch to ITER
+         LR    5,6            Load R5 with R6
+ITER     LA    6,52(,6)       Set the next entry to R6
+         B     DO             Branch to DO
+ENDDO    DS    0H
+         MVC   STOR1(48),0(5) Move R5 into our temp storage
+         MVC   0(48,5),0(3)   Move R9 into R5
+         MVC   0(48,3),STOR1  Move TEMP into R9
+         LA    3,52(,3)       Move index up one position
+         B     TOPLOOP4
+ENDLUP4  DS    0H
+**********EXIT LINKAGE***********
+         L     13,4(,13)      Load save area into R13
+         LM    14,12,12(13)   Load registers except R13
+         BR    14             Return
+         LTORG                For literals 
+*********STORAGE FOR SORT******** 
+STSTOR   DS    18F
+STOR1    DS    12F
+STOR2    DS    F
+STOR3    DS    F
+         END   MAIN
+/*
+//FT05F001 DD DSN=KC02330.CSCI360.FILES(DATA7),DISP=SHR
+//

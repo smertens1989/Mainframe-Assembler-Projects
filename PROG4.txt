@@ -1,0 +1,116 @@
+//KC03EC9X JOB ,'Sean Mertens',MSGCLASS=H
+//STEP1 EXEC PGM=ASSIST
+//STEPLIB DD DSN=KC02293.ASSIST.LOADLIB,DISP=SHR
+//SYSPRINT DD SYSOUT=*
+//SYSIN DD *
+****************************************
+*PROGRAMMER: Sean Mertens              *
+*ASSIGNMENT: Program 4                 *
+*REGS:                                 *
+*      5: Used for table               *
+*      6: Storage                      *
+*      8: Even (for division)          *
+*      9: Odd  (for division)          *
+*      11: Used for storing NUMS1/2    *
+*      12: Format counter              *
+****************************************
+MAIN     CSECT
+         USING MAIN,15
+         XPRNT PRNT1,18       Print output
+         LA    5,TABLE        Load table into R5
+         SR    6,6            Set R6 to 0
+************READ INFO************
+         XREAD BUFFER,80      Priming read
+*************LOOP 1**************
+TOPLOOP  BC    B'0100',ENDLUP Check for EOF
+         XDECI 2,BUFFER       XDECI the data
+         ST    2,0(5,6)       Store data
+*************LOOP 2**************
+TOPLOOP2 XDECI 2,0(1)         XDECI the data
+         BC    B'0001',STORE  Check for overflow
+         LA    5,4(,5)
+         ST    2,0(,5)
+         B     TOPLOOP2
+STORE    ST    2,0(5,6)       (If overflow)
+         LA    5,4(,5)
+         XREAD BUFFER,80
+         B     TOPLOOP
+*
+ENDLUP   DS    0H            END
+         ST    5,EOT         store
+         SR    6,6           Set to 0
+         SR    12,12
+         SR    9,9
+         LA    11,NUMS1      Load address
+         LA    5,TABLE
+*************LOOP 3*************
+TOPLOOP3 C     5,EOT         Check for EOT
+         BE    ENDLOOP3      If so, branch
+FORMAT   C     12,=F'4'      Check if counter is 4
+         BE    PRINT         Branch if =4
+         A     12,=F'1'      Increment counter by 1
+         L     9,0(5)        Load
+         XDECO 9,0(11,6)     Convert data for printing
+         LA    6,12(,6)      Load
+         LA    5,4(,5)
+         B     FORMAT
+PRINT    XPRNT PRNT2,117
+         SR    6,6           Set to 0
+         SR    12,12         Set to 0
+         B     TOPLOOP3
+*
+ENDLOOP3 DS    0H
+         XPRNT PRNT3,29
+         SR    9,9           Set to 0
+         SR    6,6
+         SR    3,3
+         SR    12,12
+         SR    8,8
+         LA    11,NUMS2      Load R11 with NUMS2
+         LA    5,TABLE       Table pointer gets reset
+*************LOOP 4*************
+TOPLOOP4 C     5,EOT         Check for EOT
+         BE    END           If EOT branch to END
+FORMAT2  C     12,=F'4'      Are 4 printed?
+         BE    PRINT2        Then branch
+         L     9,0(5)        LOAD FROM TABLE
+         LR    3,9
+         M     8,=F'1'       Multiply by 1
+         D     8,=F'3'       Divide by 3
+         C     8,=F'0'       Compare
+         BE    CNVRT         Branch to
+         LA    5,4(,5)
+         B     TOPLOOP4
+CNVRT    XDECO 3,0(11,6)     PRINT FORMAT TABLE TO NUMS
+         A     12,=F'1'      INCREMENT FORMAT COUNTER
+         LA    6,12(,6)
+         LA    5,4(,5)
+         B     TOPLOOP4
+PRINT2   XPRNT PRNT4,117
+         SR    12,12
+         SR    6,6
+         B     TOPLOOP4
+*
+END      DS    0H
+         BR    14            End of instructions
+         LTORG               Literals used
+**********BEGIN STORAGE*********
+PRNT1    DC    CL1'1'
+HDR      DC    CL17'The numbers - All'
+BUFFER   DS    80C
+         DC    CL1'*'
+TABLE    DS    60F'-1'
+TABEND   DS    0X
+EOT      DS    F
+PRNT2    DC    CL1' '
+NUMS1    DS    4CL12
+         DC    68C' '
+PRNT3    DC    CL1'1'
+HDR2     DC    CL28'The numbers - Multiples of 3'
+PRNT4    DC    CL1' '
+NUMS2    DS    4CL12
+         DC    68C' '
+         END   MAIN
+/*
+//FT05F001 DD DSN=KC02330.CSCI360.FILES(DATA4),DISP=SHR
+//

@@ -1,0 +1,235 @@
+//KC03EC9X JOB ,'Sean Mertens',MSGCLASS=H                               
+//STEP1 EXEC PGM=ASSIST                                                 
+//STEPLIB DD DSN=KC02293.ASSIST.LOADLIB,DISP=SHR                        
+//SYSPRINT DD SYSOUT=*                                                  
+//SYSIN DD *  
+****************************************
+*PROGRAMMER: Sean Mertens              *
+*ASSIGNMENT: Program 9                 *
+*REGS:1 - parmlist                     *
+*     14 - return                      *
+*     15 - subroutines                 *
+*DESC:Builds a table and organizes it  * 
+*     based on multiple variables      *
+****************************************                                                                    
+PGM9     CSECT  
+*******Entry linkage*********                                                        
+         STM   14,12,12(13)          
+         LR    12,15              Base register               
+         USING PGM9,12                                  
+         LA    14,MAINSAVE        Find the routine's savearea           
+         ST    13,4(,14)          Save the backward pointer                    
+         ST    14,8(,13)          Save the forward pointers                
+         LR    13,14                                                                                                                   
+         LA    1,PARMS            Set up parameter list                  
+         L     15,=V(BUILD)       Build the table                       
+         BALR  14,15                                                                                                                           
+**********************************************************************                                                                                                                                                
+         LA    1,PARMS2           Set up parameter list               
+         L     15,=V(PRINT)       Print the table                       
+         BALR  14,15                                                                                                                           
+         L     13,4(,13)          Get the address of the savearea       
+         LM    14,12,12(13)       Restore the calling routine's regs    
+         BR    14                 BRANCH                                
+         LTORG                                                                                                                                 
+*** Storage for PGM9 ***                                                                                                                       
+MAINSAVE DS    18F                Register storage            
+BUFFER   DS    80C                                                      
+         DC    CL1'*'                                                                                                                          
+PARMS2   DC    A(TABLE,EOT)       Parameter list for printing    
+PARMS    DC    A(EOT,BUFFER)      Parameter list for building                                                                                        
+EOT      DC    A(TABLE)           Storage for logical end of table addr                                                                        
+         ORG   PGM9+((*-PGM9+31)/32*32)                                 
+TABLE    DC    2304B'00'          Storage for table                      
+ENDTAB   DS    0X                 EOT marker 
+****************************************
+*BUILD subroutine                      *
+*DESC:Processes the input file and puts* 
+*     the data into the table          *
+****************************************                                                                          
+********ENTRY LINKAGE********
+BUILD    CSECT ,                  Build routine                         
+         STM   14,12,12(13)       Save the calling routine's register   
+         LR    12,15              Setup the base register               
+         USING BUILD,12             for the routine                     
+         LA    14,BLDSAVE         Find the routine's savearea           
+         ST    13,4(,14)          Save the backward pointer                   
+         ST    14,8(,13)          Save the forward pointer               
+         LR    13,14                                                                                                                           
+         LM    4,5,0(1)           Load the parameters                                                                                                        
+         SR    1,1                clear R1                                 
+         SR    2,2                clear R2                         
+         SR    9,9                clear R9                                      
+         SR    10,10              clear R10                                      
+         L     7,0(,4)            Start at next available entry                                                                                
+         XREAD 0(,5),80           Read the first record                   
+NEXT     BC    B'0100',END        Do while there are still records      
+         LR    10,7               SECOND POINTER TO TABLE                                                                                      
+         TRT   0(80,5),T1         SCAN FOR CHAR                         
+         LR    3,1               ADDRESS OF FIRST CHAR                  
+         TRT   1(80,3),T2        SCAN FOR END OF STRING                 
+         LR    6,1               ADDRESS OF END OF STRING               
+         SR    1,3                                                      
+         AR    9,1                                                      
+         LR    8,1               LOAD SIZE - 1 TO R8                    
+         SLL   8,11              SHIFT TO THE LEFT                      
+         BCTR  1,0               MINUS 1                                
+         EX    1,MOVEC           MOVE NAME TO TABLE                     
+         B     SKIP            SKIP FUNCTION                          
+MOVEC    MVC   8(0,10),0(3)      FUNC TO EXECUTE                                                                                                                                                                      
+SKIP     DS    0H                                                       
+         TRT   1(80,6),T1        TEST FOR FIRST CHAR                    
+         LR    3,1           LOAD ADDRESS OF FIRST CHAR                 
+         TRT   1(80,3),T2    TEST FOR END OF STRING                     
+         LR    6,1         LOAD ADDRESS OF END OF STRING                
+         SR    1,3          GET SIZE OF STRING                          
+         LA    10,8(9,10)     LOAD POSTION TO R10                       
+         AR    9,1          ADD SIZE TO A TOTAL                         
+         SLL   1,6          SHIFT BITS TO THE LEFT                      
+         AR    8,1           ADD SHIFTED SIZE TO R8                     
+         SRL   1,6             SHIFT SECOND LENGTH SIZE                 
+         BCTR  1,0             SIZE MINUS ONE FOR MVC                   
+         EX    1,MOVEC2         EXECUTE MVC                              
+         B     SKIP2            BRANCH                                  
+MOVEC2   MVC   0(0,10),0(3)     MOVE TEAM NAME TO TBL                   
+SKIP2    DS    0H                                                                                                                              
+         SLL   8,16         SHIFT SIZES TO MAKE TWO BYTES               
+         ST    8,TEMP         STORE NAME LENGTHS                        
+         MVC   0(2,7),TEMP    MOVE LENGTHS TO TABLE                                                                                            
+         TRT   1(80,6),T1           SCAN AND LOAD                       
+         LR    3,1                BEGINNING SCORE1 POS                  
+         TRT   1(80,3),T2         SCAN AND LOAD                         
+         LR    6,1                END OF SCORE 1 POS                    
+         SR    1,3                 PACK SCORE 1 TO TABLE                
+         PACK  2(2,7),0(3,3)                                                                                                                   
+         TRT   1(80,6),T1          SCAN AND LOAD                        
+         LR    3,1               BEGINNING SCORE2 POS                   
+         TRT   1(80,3),T2        SCAN AND LOAD                          
+         LR    6,1               END OF SCORE 2 POS                     
+         PACK  4(2,7),0(3,3)      PACK SCORE 2 TO TABLE                                                                                        
+         TRT   1(80,6),T1         SCAN AND LOAD                          
+         LR    3,1              BEGINNING SCORE3 POS                     
+         TRT   1(80,3),T2       SCAN AND LOAD                            
+         LR    6,1              END OF SCORE 3 POS                       
+         PACK  6(2,7),0(3,3)    PACK SCORE 3 TO TABLE                                                                                          
+         LA    7,8(9,7)         Increment to next table element         
+         SR    9,9              CLEAR                                     
+         SR    1,1              REGISTERS                                
+         SR    2,2                                                      
+         SR    8,8                                                      
+         XREAD 0(,5),80            Read the next record                 
+         B     NEXT                                                    
+END      DS    0H                 Enddo                                                                                                        
+         ST    7,0(,4)            Save the logical end of table addr                                                                           
+         L     13,4(,13)          Get the address of the savearea       
+         LM    14,12,12(13)       Restore the calling routine's regs    
+         BR    14                           BRANCH OUT                  
+         LTORG                    LITERAL POOL                                                                                                 
+*** Storage for BUILD routine ***                                                                                                              
+BLDSAVE  DS    18F                Storage for registers                                                                                        
+TEMP     DS    CL4'-1'                                                                                                                         
+*** TRT TABLE TO IGNORE BLANKS                                                                                                                 
+T1       DC    256X'FF'           ANY NONZERO VALUES                    
+         ORG   T1+C' '                                                  
+         DC    X'00'              IGNORE BLANKS                         
+         ORG                                                                                                                                   
+*** TRT TABLE TO IGNORE EVERYTHING EXCEPT ':'                                                                                                  
+T2       DC    256X'00'                                                 
+         ORG   T2+C':'                                                  
+         DC    X'01'                                                    
+         ORG                                                                                                                    
+****************************************
+*PRINT subroutine                      *
+*DESC:Prints the output.               *
+****************************************                                                          
+PRINT    CSECT ,                  Print routine                         
+         STM   14,12,12(13)       Save the calling routine's register   
+         LR    12,15              Setup the base register               
+         USING PRINT,12             for the routine                     
+         LA    14,PRNTSAVE        Find the routine's savearea           
+         ST    13,4(,14)          Save the backward                     
+         ST    14,8(,13)            and forward pointers                
+         LR    13,14                                                                                                                           
+         LM    3,4,0(1)           Load the parameter list                                                                                      
+         XPRNT HDRLN1,ENDHDR1-HDRLN1  Write the page                    
+         XPRNT HDRLN2,ENDHDR2-HDRLN2     and column                     
+         XPRNT HDRLN3,ENDHDR3-HDRLN3        headers for the report                                                                             
+         SR    5,5                                                      
+NEXT2    C     3,0(,4)            Do while NOT end of table             
+         BNL   ENDDO2                                                                                      
+         C     5,=F'4'                                                 
+         BE    ENDDO2                                                 
+         A     5,=F'1' 
+         MVC   SCORE1(4),=X'40212020'                                   
+         ED    SCORE1(4),2(3)              Put first score on line                                        
+         MVC   SCORE2(4),=X'40212020'                                   
+         ED    SCORE2(4),4(3)              Put second score on line                                     
+         MVC   SCORE3(4),=X'40212020'                                   
+         ED    SCORE3(4),6(3)              Put third score on line                                    
+         SR    7,7                CLEAR R7 FOR                 
+         A     7,=F'0'            ZEROING OUT TEMP5                
+         ST    7,TEMP5            STORE ZEROS                               
+         MVC   TEMP5(2),0(3)      GET NAME LENGTHS                         
+         L     1,TEMP5            AND LOAD TO R1                          
+         SRL   1,27               SHIFT BACK TO SCHL NAME LNGTH               
+         LA    6,8(1,3)           LOAD END OF STRING POSITION                
+         BCTR  1,0                SIZE MINUS 1 FOR MVC                                                                                         
+         EX    1,CMPAR                                                  
+         BE    SKIP3                                                                                                                         
+         EX    1,MOVE3            EXECUTE MVC                           
+         B     SKIP3              BRANCH AROUND MOVE3                   
+MOVE3    MVC   SNAME(0),8(3)      FUNC TO EXECUTE                       
+SKIP3    DS    0H                                                       
+         MVC   TEMP6,SNAME                                              
+         L     1,TEMP5                       
+         SLL   1,6                              
+         LR    1,1                               
+         SRL   1,28                                   
+         LR    9,1                              
+         BCTR  1,0                                      
+         EX    1,MOVE4                                     
+         B     SKIP4                             
+MOVE4    MVC   TNAME(0),0(6)                             
+SKIP4    DS    0H                                                                                                                              
+         XPRNT PLINE,ENDPRNT-PLINE print output                                                                                    
+         LA    6,1(1,6)            advance to next               
+         LA    3,0(,6)                                
+         B     NEXT2                          
+ENDDO2   DS    0H                 end do                                                                                                  
+*****  RELOAD STORAGE AREA                                                                                                                     
+         L     13,4(,13)          Get the address of the savearea       
+         LM    14,12,12(13)       Restore the calling routine's regs    
+         BR    14                                                       
+         LTORG                    LITERAL POOL                                                                                                
+***PRINT routine storage***                                                                                                              
+PRNTSAVE DS    18F                Storage for initial register values                                                                          
+TEMP5    DS    CL2                TEMP STORAGE FOR NAME LENGTHS         
+TEMP6    DS    CL20                                                     
+CMPAR    CLC   TEMP6(0),8(3)                                                                                                                   
+HDRLN1   DC    CL42'1'            Page header                           
+         DC    C'BIG 9 CONFERENCE TIDDILY-WINKS TOURNAMENT'             
+ENDHDR1  DS    0C                                                                                                                              
+HDRLN2   DC    CL8'-'             Column header 1                       
+         DC    CL25'School                   '                          
+         DC    CL24'Team                    '                           
+         DC    CL9'Game 1   '                                           
+         DC    CL9'Game 2   '                                           
+         DC    CL6'Game 3'                                              
+ENDHDR2  DS    0C                                                                                                                              
+HDRLN3   DC    CL8' '                                                   
+         DC    106CL1'-'                                                
+ENDHDR3  DS    0C                                                                                                                              
+PLINE    DC    CL7' '             Start of output                            
+SNAME    DS    CL20               Storage for name of school                
+         DC    CL14' '                                                  
+TNAME    DS    20C                Storage for name of team                
+         DC    CL14' '                                                  
+SCORE1   DS    CL4                Storage for first score                  
+         DC    CL5' '                                                   
+SCORE2   DS    CL4                Storage for second score                 
+         DC    CL5' '                                                   
+SCORE3   DS    CL4                Storage for third score         
+ENDPRNT  DS    0C                 End of output                                                                                                                                                  
+         END   PGM9                                                     
+/*                                                                      
+//FT05F001 DD DSN=KC02330.CSCI360.FILES(DATA9),DISP=SHR                 

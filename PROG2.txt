@@ -1,0 +1,87 @@
+//KC03EC9A JOB ,'Sean Mertens',MSGCLASS=H                               00010055
+//STEP1 EXEC PGM=ASSIST                                                 00020000
+//STEPLIB DD DSN=KC02293.ASSIST.LOADLIB,DISP=SHR                        00030000
+//SYSPRINT DD SYSOUT=*                                                  00040000
+//SYSIN DD *                                                            00050000
+****************************************                                00060000
+*PROGRAMMER: Sean Mertens              *                                00070040
+*ASSIGNMENT: Program 2                 *                                00080040
+*FUNCTION:   Calculates the net pay for*                                00090040
+*            multiple employees, while *                                00091040
+*            reading from an input file*                                00092040
+*REGISTERS:                            *                                00093040
+*            2 - Gross amount          *                                00094040
+*            3 - Bonus amount          *                                00095040
+*            4 - Deduct amount         *                                00096040
+*            5 - Employee counter      *                                00097040
+*            6 - Net pay counter       *                                00098040
+****************************************                                00100000
+MAIN       CSECT                  Control SECTion                       00110040
+           USING MAIN,15          Using statement                       00120040
+           SR    5,5              Initialize # of employees             00130000
+           SR    6,6              Initialize total net pay              00140000
+           XPRNT PRNTHEAD,47      Print header                          00150032
+           XPRNT LABELS,63        Print table labels                    00160033
+           XREAD BUFFER,80        Read first line                       00170027
+TOPLOOP    BC    B'0100',ENDLOOP  Check for EOF                         00180000
+           XDECI 2,BUFFER         XDECI commands for the 3 values       00190040
+           XDECI 3,0(1)                                                 00200000
+           XDECI 4,0(1)                                                 00210000
+           XDECO 2,GROSS          XDECO commands for the 3 values       00220040
+           XDECO 3,BONUS                                                00230000
+           XDECO 4,DEDUCT                                               00240000
+           AR    2,3              Add GROSS to BONUS                    00250040
+           SR    2,4              Subtract DEDUCT from the total        00260040
+           AR    6,2              Increment the total net pay           00270040
+           XDECO 2,NETPAY         Convert to character format           00271001
+           A     5,=F'1'          Increment # of employees              00280000
+           XDECO 5,EMPNUM         Number of employees                   00281001
+           XPRNT PRNTLOOP,66      Print loop output                     00300038
+           XREAD BUFFER,80        Read next line                        00310027
+           BC    B'1111',TOPLOOP  Return to beginning of loop           00320000
+ENDLOOP    DS    0H               End of loop                           00330000
+           XDECO 5,EMPNUMS        Total number of employees             00340001
+           XDECO 6,NETTOTAL       Total net pay                         00350000
+           XPRNT EMPNUMLN,33      Print employee counter                00360007
+           XPRNT NETLN,29         Print net total                       00370039
+           BCR   B'1111',14                                             00380000
+***********PROGRAM STORAGE***********                                   00380127
+BUFFER     DS    CL80             Input buffer                          00380227
+*************LOOP OUTPUT*************                                   00380325
+PRNTLOOP   DC    CL1'0'                                                 00381001
+EMPNUM     DS    CL12             The employee # counter                00390036
+           DC    C' '                                                   00391024
+GROSS      DS    CL12             The employee's gross pay amount       00400036
+           DC    C' '                                                   00401001
+BONUS      DS    CL12             The employee's bonus amount           00410037
+           DC    C' '                                                   00411001
+DEDUCT     DS    CL12             The employee's deductions             00420037
+           DC    C' '                                                   00421001
+NETPAY     DS    CL12             The employee's net pay                00430037
+           DC    C' '                                                   00431001
+************COLUMN HEADER************                                   00451012
+PRNTHEAD   DC    CL1'0'                                                 00460029
+           DC    CL26' '                                                00460117
+           DC    CL20'Employee Information'                             00460212
+*************DATA LABELS*************                                   00460319
+LABELS     DC    CL1'0'                                                 00461034
+           DC    CL15'Employee #     '                                  00470005
+           DC    CL14'Gross Pay     '                                   00471005
+           DC    CL10'Bonus     '                                       00472005
+           DC    CL16'Deductions     '                                  00473005
+           DC    CL7'Net Pay'                                           00474005
+**************EMPLOYEES**************                                   00475020
+EMPNUMLN   DC    CL1'-'                                                 00480034
+           DC    CL20'Number of Employees:'                             00490000
+EMPNUMS    DS    CL12                                                   00491001
+           DC    C' '                                                   00492001
+***************NET PAY***************                                   00493020
+NETLN      DS    CL1'-'                                                 00500029
+           DC    CL16'Overall Net Pay:'                                 00510000
+NETTOTAL   DS    CL12             The total net pay                     00511001
+           DC    C' '                                                   00512001
+************END OF OUTPUT************                                   00513021
+           END   MAIN             End assembly, define entry point      00520000
+/*                                                                      00530000
+//FT05F001 DD DSN=KC02330.CSCI360.FILES(DATA2),DISP=SHR                 00540000
+//                                                                      00550000
